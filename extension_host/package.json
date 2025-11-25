@@ -10,7 +10,7 @@
     "dev": "tsc && node ./dist/src/main.js",
     "watch:tsc": "tsc --watch",
     "watch": "tsc --watch",
-    "build:extension": "tsc --noEmit && tsup"
+    "build:extension": "tsup"
   },
   "dependencies": {
     "@c4312/eventsource-umd": "^3.0.5",
@@ -151,6 +151,7 @@
     "ts-node": "^10.9.1",
     "tslib": "^2.6.3",
     "tsup": "^8.5.0",
+    "typescript": "^5.9.3",
     "util": "^0.12.4",
     "webpack": "^5.94.0",
     "webpack-cli": "^5.1.4",
