@@ -112,6 +112,14 @@ SPDX-License-Identifier: Apache-2.0
                     anchor="right" />
         <notificationGroup id="RunVSAgent"
                            displayType="BALLOON"/>
+
+        <!-- Claudix Settings -->
+        <applicationConfigurable
+            parentId="tools"
+            instance="com.sina.weibo.agent.extensions.plugin.claudix.ClaudixSettingsConfigurable"
+            id="com.sina.weibo.agent.extensions.plugin.claudix.ClaudixSettingsConfigurable"
+            displayName="Claudix"
+            groupId="tools" />
     </extensions>
 
     <extensions defaultExtensionNs="org.jetbrains.plugins.terminal">

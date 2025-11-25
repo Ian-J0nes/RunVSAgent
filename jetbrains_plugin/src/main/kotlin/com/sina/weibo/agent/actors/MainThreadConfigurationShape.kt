@@ -12,6 +12,8 @@ import com.intellij.openapi.project.ProjectManager
 import com.sina.weibo.agent.core.PluginContext
 import com.sina.weibo.agent.util.URI
 import com.sina.weibo.agent.util.URIComponents
+import com.sina.weibo.agent.extensions.plugin.claudix.ClaudixSettings
+import com.sina.weibo.agent.extensions.plugin.claudix.EnvironmentVariable
 
 /**
  * Enum for configuration targets.
@@ -139,15 +141,21 @@ class MainThreadConfiguration : MainThreadConfigurationShape {
         // Convert parameter types from raw values to type-safe objects
         val configTarget = ConfigurationTarget.fromValue(target)
         val configOverrides = convertToConfigurationOverrides(overrides)
-        
+
         // Log the configuration update for debugging purposes
         logger.info("Update configuration option: target=${configTarget?.let { ConfigurationTarget.toString(it) }}, key=$key, value=$value, " +
                    "overrideIdentifier=${configOverrides?.overrideIdentifier}, resource=${configOverrides?.resource}, " +
                    "scopeToLanguage=$scopeToLanguage")
-        
+
+        // Handle Claudix-specific configuration
+        if (key.startsWith("claudix.")) {
+            handleClaudixConfiguration(key, value)
+            return
+        }
+
         // Build the complete configuration key including overrides and language scoping
         val fullKey = buildConfigurationKey(key, configOverrides, scopeToLanguage)
-        
+
         // Store the configuration value based on the target scope
         when (configTarget) {
             ConfigurationTarget.APPLICATION -> {
@@ -327,7 +335,51 @@ class MainThreadConfiguration : MainThreadConfigurationShape {
         val openProjects = ProjectManager.getInstance().openProjects
         return openProjects.firstOrNull { it.isInitialized && !it.isDisposed }
     }
-    
+
+    /**
+     * Handles Claudix-specific configuration updates.
+     * Routes claudix.* configuration keys to ClaudixSettings service.
+     * @param key The configuration key (e.g., "claudix.selectedModel")
+     * @param value The configuration value to store
+     */
+    private fun handleClaudixConfiguration(key: String, value: Any?) {
+        val settings = ClaudixSettings.getInstance()
+        val state = settings.state
+        val properties = PropertiesComponent.getInstance()
+
+        when (key) {
+            "claudix.selectedModel" -> {
+                state.selectedModel = value as? String ?: "default"
+                // Sync to PropertiesComponent for VSCode API access
+                properties.setValue(key, state.selectedModel)
+                logger.info("Updated Claudix selectedModel: ${state.selectedModel}")
+            }
+            "claudix.environmentVariables" -> {
+                state.environmentVariables.clear()
+                if (value is List<*>) {
+                    value.forEach { item ->
+                        if (item is Map<*, *>) {
+                            val name = item["name"] as? String ?: ""
+                            val envValue = item["value"] as? String ?: ""
+                            if (name.isNotEmpty()) {
+                                state.environmentVariables.add(EnvironmentVariable(name, envValue))
+                            }
+                        }
+                    }
+                }
+                // Sync to PropertiesComponent for VSCode API access
+                val envVarsJson = state.environmentVariables.joinToString(",") {
+                    "{\"name\":\"${it.name}\",\"value\":\"${it.value}\"}"
+                }
+                properties.setValue(key, "[$envVarsJson]")
+                logger.info("Updated Claudix environmentVariables: ${state.environmentVariables.size} items")
+            }
+            else -> {
+                logger.warn("Unknown Claudix configuration key: $key")
+            }
+        }
+    }
+
     /**
      * Stores a configuration value in the properties component based on its type.
      * Handles type-specific storage for common data types and falls back to string

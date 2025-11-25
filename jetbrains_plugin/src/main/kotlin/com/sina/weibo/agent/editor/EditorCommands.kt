@@ -43,6 +43,46 @@ fun registerOpenEditorAPICommands(project: Project,registry: CommandRegistry) {
 
         }
     )
+
+    // Register workbench.action.openSettings command
+    registry.registerCommand(
+        object : ICommand{
+            override fun getId(): String {
+                return "workbench.action.openSettings"
+            }
+            override fun getMethod(): String {
+                return "openSettings"
+            }
+
+            override fun handler(): Any {
+                return OpenEditorAPICommands(project)
+            }
+
+            override fun returns(): String? {
+                return "void"
+            }
+        }
+    )
+
+    // Register revealInExplorer command
+    registry.registerCommand(
+        object : ICommand{
+            override fun getId(): String {
+                return "revealInExplorer"
+            }
+            override fun getMethod(): String {
+                return "revealInExplorer"
+            }
+
+            override fun handler(): Any {
+                return OpenEditorAPICommands(project)
+            }
+
+            override fun returns(): String? {
+                return "void"
+            }
+        }
+    )
 }
 
 /**
@@ -112,6 +152,79 @@ class OpenEditorAPICommands(val project: Project) {
         }else{
             return null
         }
+    }
+
+    /**
+     * Opens the settings/preferences page in JetBrains IDE
+     *
+     * @param settingId Optional setting ID to focus on (e.g., "claudix")
+     * @return null
+     */
+    suspend fun openSettings(settingId: String? = null): Any? {
+        logger.info("Opening settings with ID: $settingId")
+        try {
+            com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+                val settingsAction = com.intellij.openapi.actionSystem.ActionManager.getInstance()
+                    .getAction("ShowSettings")
+                if (settingsAction != null) {
+                    val dataContext = com.intellij.openapi.actionSystem.DataContext { dataId ->
+                        when (dataId) {
+                            com.intellij.openapi.actionSystem.CommonDataKeys.PROJECT.name -> project
+                            else -> null
+                        }
+                    }
+                    settingsAction.actionPerformed(
+                        com.intellij.openapi.actionSystem.AnActionEvent.createFromDataContext(
+                            "",
+                            null,
+                            dataContext
+                        )
+                    )
+                    logger.info("Settings opened successfully")
+                } else {
+                    logger.warn("ShowSettings action not found")
+                }
+            }
+        } catch (e: Exception) {
+            logger.error("Failed to open settings", e)
+        }
+        return null
+    }
+
+    /**
+     * Reveals a file or directory in the system file explorer
+     *
+     * @param uri Map containing URI components for the file/directory to reveal
+     * @return null
+     */
+    suspend fun revealInExplorer(uri: Map<String, Any?>): Any? {
+        val path = uri["path"] as? String
+        logger.info("Revealing in explorer: $path")
+
+        if (path != null) {
+            try {
+                val ioFile = File(path)
+                if (ioFile.exists()) {
+                    com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+                        val vfs = LocalFileSystem.getInstance()
+                        val vFile = vfs.refreshAndFindFileByPath(path)
+                        if (vFile != null) {
+                            com.intellij.ide.actions.RevealFileAction.openFile(ioFile.toPath())
+                            logger.info("File revealed in explorer: $path")
+                        } else {
+                            logger.warn("Virtual file not found: $path")
+                        }
+                    }
+                } else {
+                    logger.warn("File does not exist: $path")
+                }
+            } catch (e: Exception) {
+                logger.error("Failed to reveal file in explorer", e)
+            }
+        } else {
+            logger.warn("No path provided for revealInExplorer")
+        }
+        return null
     }
 }
 
