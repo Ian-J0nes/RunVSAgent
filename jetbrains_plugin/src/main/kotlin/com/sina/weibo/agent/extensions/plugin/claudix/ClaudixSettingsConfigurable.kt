@@ -152,10 +152,6 @@ class ClaudixSettingsConfigurable : Configurable {
         syncToMainThreadConfiguration()
     }
 
-    /**
-     * Syncs settings through MainThreadConfiguration and Extension Host RPC
-     * This triggers VSCode's workspace.getConfiguration().update() which persists to storage
-     */
     private fun syncToMainThreadConfiguration() {
         val state = settings.state
 
@@ -166,7 +162,6 @@ class ClaudixSettingsConfigurable : Configurable {
             println("[CLAUDIX-DEBUG] envVar[$index]: name=${envVar.name}, value=${envVar.value}")
         }
 
-        // 1. Sync to PropertiesComponent (for JetBrains side storage)
         val properties = PropertiesComponent.getInstance()
         properties.setValue("claudix.selectedModel", state.selectedModel)
 
@@ -176,9 +171,7 @@ class ClaudixSettingsConfigurable : Configurable {
         properties.setValue("claudix.environmentVariables", "[$envVarsJson]")
         println("[CLAUDIX-DEBUG] Saved to PropertiesComponent")
 
-        // 2. Sync to Extension Host via RPC updateConfiguration
         try {
-            // Find an active project to get PluginContext
             val activeProject = getActiveProject()
             println("[CLAUDIX-DEBUG] Active project: ${activeProject?.name}")
 
@@ -189,29 +182,23 @@ class ClaudixSettingsConfigurable : Configurable {
                 println("[CLAUDIX-DEBUG] RPC protocol available: ${rpcProtocol != null}")
 
                 if (rpcProtocol != null) {
-                    // Get ExtHostConfiguration proxy
                     val extHostConfiguration = rpcProtocol.getProxy(
                         com.sina.weibo.agent.core.ServiceProxyRegistry.ExtHostContext.ExtHostConfiguration
                     )
 
-                    println("[CLAUDIX-DEBUG] Got ExtHostConfiguration proxy: $extHostConfiguration")
-
-                    // Build configuration model with Claudix settings
                     val envVars = state.environmentVariables.map { envVar ->
                         mapOf("name" to envVar.name, "value" to envVar.value)
                     }
 
                     val claudixConfig = mapOf(
-                        "claudix.selectedModel" to state.selectedModel,
-                        "claudix.environmentVariables" to envVars
+                        "selectedModel" to state.selectedModel,
+                        "environmentVariables" to envVars
                     )
 
-                    println("[CLAUDIX-DEBUG] Built claudixConfig: $claudixConfig")
-
-                    val configModel = mapOf(
+                    val configData = mapOf(
                         "defaults" to mapOf(
-                            "contents" to claudixConfig,
-                            "keys" to claudixConfig.keys.toList(),
+                            "contents" to mapOf("claudix" to claudixConfig),
+                            "keys" to emptyList<String>(),
                             "overrides" to emptyList<String>()
                         ),
                         "policy" to emptyMap<String, Any>(),
@@ -223,19 +210,22 @@ class ClaudixSettingsConfigurable : Configurable {
                         "configurationScopes" to emptyList<Any>()
                     )
 
-                    println("[CLAUDIX-DEBUG] Calling extHostConfiguration.updateConfiguration()...")
-                    // Update configuration via RPC
-                    extHostConfiguration.updateConfiguration(configModel)
-                    println("[CLAUDIX-DEBUG] Successfully called updateConfiguration()")
-                    println("[CLAUDIX-DEBUG] Updated Claudix configuration via RPC: model=${state.selectedModel}, envVars=${envVars.size} items")
+                    val change = mapOf(
+                        "keys" to listOf("claudix.selectedModel", "claudix.environmentVariables"),
+                        "overrides" to emptyList<Any>()
+                    )
+
+                    println("[CLAUDIX-DEBUG] Calling extHostConfiguration.acceptConfigurationChanged()...")
+                    extHostConfiguration.acceptConfigurationChanged(configData, change)
+                    println("[CLAUDIX-DEBUG] Successfully called acceptConfigurationChanged()")
                 } else {
-                    println("[CLAUDIX-DEBUG] RPC protocol not available, Claudix configuration not synced to Extension Host")
+                    println("[CLAUDIX-DEBUG] RPC protocol not available")
                 }
             } else {
-                println("[CLAUDIX-DEBUG] No active project found, Claudix configuration not synced to Extension Host")
+                println("[CLAUDIX-DEBUG] No active project found")
             }
         } catch (e: Exception) {
-            println("[CLAUDIX-DEBUG] Failed to sync Claudix configuration to Extension Host: ${e.message}")
+            println("[CLAUDIX-DEBUG] Failed to sync: ${e.message}")
             e.printStackTrace()
         }
 
