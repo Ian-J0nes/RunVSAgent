@@ -14,6 +14,7 @@ import com.sina.weibo.agent.ipc.proxy.logger.FileRPCProtocolLogger
 import com.sina.weibo.agent.ipc.proxy.uri.IURITransformer
 import com.sina.weibo.agent.theme.ThemeManager
 import com.sina.weibo.agent.util.ProxyConfigUtil
+import com.sina.weibo.agent.extensions.plugin.claudix.ClaudixSettings
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -68,6 +69,34 @@ class RPCManager(
                 httpProxyConfig?.let {
                     contentsBuilder["http"] = it
                     logger.info("Using proxy configuration for initialization: $it")
+                }
+
+                // Add Claudix configuration from ClaudixSettings
+                try {
+                    logger.info("[CLAUDIX-DEBUG] Starting to load Claudix configuration from ClaudixSettings")
+                    val claudixSettings = ClaudixSettings.getInstance()
+                    val claudixState = claudixSettings.state
+
+                    logger.info("[CLAUDIX-DEBUG] Loaded ClaudixSettings state: selectedModel=${claudixState.selectedModel}, envVars count=${claudixState.environmentVariables.size}")
+
+                    // Build Claudix configuration as nested object
+                    val envVars = claudixState.environmentVariables.map { envVar ->
+                        logger.info("[CLAUDIX-DEBUG] Processing env var: name=${envVar.name}, value=${envVar.value}")
+                        mapOf("name" to envVar.name, "value" to envVar.value)
+                    }
+
+                    val claudixConfig = mapOf(
+                        "selectedModel" to claudixState.selectedModel,
+                        "environmentVariables" to envVars
+                    )
+
+                    contentsBuilder["claudix"] = claudixConfig
+
+                    logger.info("[CLAUDIX-DEBUG] Successfully added Claudix configuration to initializeConfiguration")
+                    logger.info("[CLAUDIX-DEBUG] Final contentsBuilder keys: ${contentsBuilder.keys}")
+                    logger.info("[CLAUDIX-DEBUG] claudix config: $claudixConfig")
+                } catch (e: Exception) {
+                    logger.error("[CLAUDIX-DEBUG] Failed to load Claudix configuration", e)
                 }
 
                 // Create empty configuration model

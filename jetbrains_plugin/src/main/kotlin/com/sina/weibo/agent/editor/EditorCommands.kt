@@ -83,6 +83,26 @@ fun registerOpenEditorAPICommands(project: Project,registry: CommandRegistry) {
             }
         }
     )
+
+    // Register testClaudixConfig command for debugging
+    registry.registerCommand(
+        object : ICommand{
+            override fun getId(): String {
+                return "_test.claudixConfig"
+            }
+            override fun getMethod(): String {
+                return "testClaudixConfig"
+            }
+
+            override fun handler(): Any {
+                return OpenEditorAPICommands(project)
+            }
+
+            override fun returns(): String? {
+                return "void"
+            }
+        }
+    )
 }
 
 /**
@@ -224,6 +244,41 @@ class OpenEditorAPICommands(val project: Project) {
         } else {
             logger.warn("No path provided for revealInExplorer")
         }
+        return null
+    }
+
+    /**
+     * Test Claudix configuration reading (for debugging)
+     *
+     * @return null
+     */
+    suspend fun testClaudixConfig(): Any? {
+        logger.info("[CLAUDIX-TEST] ========== Testing Claudix Configuration ==========")
+
+        try {
+            // 1. Test reading from ClaudixSettings
+            val settings = com.sina.weibo.agent.extensions.plugin.claudix.ClaudixSettings.getInstance()
+            val state = settings.state
+            logger.info("[CLAUDIX-TEST] From ClaudixSettings:")
+            logger.info("[CLAUDIX-TEST]   selectedModel: ${state.selectedModel}")
+            logger.info("[CLAUDIX-TEST]   environmentVariables count: ${state.environmentVariables.size}")
+            state.environmentVariables.forEachIndexed { index, envVar ->
+                logger.info("[CLAUDIX-TEST]   envVar[$index]: name=${envVar.name}, value=${envVar.value}")
+            }
+
+            // 2. Test reading from PropertiesComponent
+            val properties = com.intellij.ide.util.PropertiesComponent.getInstance()
+            val selectedModel = properties.getValue("claudix.selectedModel")
+            val envVarsJson = properties.getValue("claudix.environmentVariables")
+            logger.info("[CLAUDIX-TEST] From PropertiesComponent:")
+            logger.info("[CLAUDIX-TEST]   claudix.selectedModel: $selectedModel")
+            logger.info("[CLAUDIX-TEST]   claudix.environmentVariables: $envVarsJson")
+
+            logger.info("[CLAUDIX-TEST] ========== Test Complete ==========")
+        } catch (e: Exception) {
+            logger.error("[CLAUDIX-TEST] Failed to test Claudix configuration", e)
+        }
+
         return null
     }
 }
